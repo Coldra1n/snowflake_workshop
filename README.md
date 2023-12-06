@@ -1,99 +1,107 @@
-## BUILD LLM Bootcamp 2023 Day 1: Deploy Llama 2 from Hugging Face in Snowpark Container Services
+## BUILD LLM Bootcamp 2023 Day 2: Fine-tune and Deploy Llama 2 in Snowpark Container Services
 
-### Prerequisites
+### Prerequisite
 
-* Laptop with wifi and ability to download libraries and Python packages from the web
-* Docker Desktop (https://docs.docker.com/desktop/) installed
-* VS Code (recommended) or other IDE
-* A Hugging Face account (https://huggingface.co/)
-Completed Llama 2 request form (https://ai.meta.com/resources/models-and-libraries/llama-downloads/). **NOTE**: Your Hugging Face account email address MUST match the email you provide on the Meta website or your request will not be approved
-* After approval, submit the form (https://huggingface.co/meta-llama/Llama-2-7b-chat-hf) to access Llama 2 on Hugging Face to unlock access to the model. **NOTE**: This could take several hours.
+Successfully completed [BUILD LLM Bootcamp Day 1](https://github.com/Snowflake-Labs/build-llm-bootcamp-2023/blob/main/day1/README.md).
 
 ### Snowpark Container Services (SPCS) User Account
 
-Get exclusive access to Snowpark Container Services - currently in Private Preview - by clicking on the link provided during the LLM Bootcamp session. 
+Get exclusive access to Snowpark Container Services - currently in Private Preview - by clicking on the link provided during the LLM Bootcamp session.
 
 **NOTE**: If you are not able to get a SPCS user account, you can still attend sessions on Day 1 and Day 2 to earn the badge after completing the assessment by December 8, 2023 11:59PM Pacific Time.
 
-### Hugging Face Token
-
-Login into your account and access your Hugging Face token by browsing to Settings -> Access Tokens -> New token -- https://huggingface.co/settings/tokens
-
 ### Environment Setup
 
-#### Step 1: Clone Repository
+#### Step 1: Snowflake Login
 
-Clone this repository on your laptop and browse to the cloned folder.
+Log into Snowflake account using your credentials -- [https://app.snowflake.com/sfsenorthamerica/build_spcs](https://app.snowflake.com/sfsenorthamerica/build_spcs)
 
-#### Step 2: Create Conda Environment
+#### Step 2: Create SQL Worksheet
 
-In a terminal window, run the following command to create a conda environment:
+After you log into your Snowflake account, click on **Worksheets** on the left navigation menu and then click on '+' button on top right and select **SQL Worksheet**.
 
-`conda create --name llm-bootcamp -c https://repo.anaconda.com/pkgs/snowflake python=3.9`
+#### Step 3: Select Database, Schema, and Warehouse
 
-#### Step 3: Activate Conda Environment
+In the SQL Worksheet, run the following commands to select database, schema, and warehouse assigned to you:
 
-In the same terminal window, run the following command to activate the conda environment:
-
-`conda activate llm-bootcamp`
-
-#### Step 4: Install Libraries
-
-In the same terminal window, run the following command to install required packages from Snowflake Anaconda channel:
-
-`conda install -c https://repo.anaconda.com/pkgs/snowflake snowflake-snowpark-python pandas notebook`
-
-#### Step 5: Update Credentials
-
-Update [connection.json](connection.json) with your Hugging Face token and Snowflake credentials based on the user account you got access to -- see "**Snowpark Container Services User Account**" section above.
-
-```json
-{
-  "account"   : "",
-  "user"      : "USER####",
-  "password"  : "",
-  "role"      : "ROLE_USER####",
-  "warehouse" : "WH_XS_USER####",
-  "database"  : "DB_USER####",
-  "schema"    : "SCHEMA_LLM",
-  "compute_pool" : "COMPUTE_POOL_USER####",
-  "huggingface_token": ""
-}
+```sql
+use DB_USER####.SCHEMA_LLM;
+use WAREHOUSE WH_XS_USER####;
 ```
 
-**NOTE**: Replace `####` with your user number, set your `password` and `huggingface_token`.
+NOTE: In the above SQL, replace `####` in database name and warehouse with your user number.
 
-### Hands-on Lab: Deploy Llama 2 from Hugging Face in Snowpark Container Services
+#### Step 4: Compute Pool Status
 
-* Run `jupyter notebook` in the terminal window or open [llm-day1-notebook.ipynb](llm-day1-notebook.ipynb) in your favorite IDE.
-* Select `llm-bootcamp` as your Notebook kernel
+Check the status of your compute pool by running the following command:
+
+```sql
+show compute pools;
+```
+
+NOTE: If the state of your compute pool is STARTING or RESIZING, wait a few mins until it's in IDLE or ACTIVE state before proceeding.
+
+#### Step 4: Free up Resources
+
+Drop service from Day 1 to free up resources for Day 2 by running the following commands:
+
+```sql
+show services;
+```
+
+Assuming you have successfully completed hands-on lab from Day 1, the above command will list service that was created when you deployed Llama 2 from Hugging Face in SPCS. If that's the case, run the following command to drop that service.
+
+```sql
+drop service SERVICE_ID_GOES_HERE;
+```
+
+NOTE: The service ID should like something like SERVICE_FD43C8AA84BD11EE8E7CE246F4FD5A27
+
+#### Step 5: Create Jupyter Notebook Service
+
+Run the following command to create the service that will host the Jupyter Notebook which will be accessible via a public endpoint.
+
+```sql
+create service FINETUNE_LLM_SERVICE
+  MIN_INSTANCES = 1
+  MAX_INSTANCES = 1
+  COMPUTE_POOL = COMPUTE_POOL_USER####
+  SPEC = '@yaml_stage/llm-bootcamp.yaml';
+```
+
+NOTE: In the above SQL, replace `####` in compute pool name with your user number.
+
+#### Step 6: Jupyter Notebook Service Status
+
+Run the following command to check the status of FINETUNE_LLM_SERVICE service
+
+```sql
+select 
+  v.value:containerName::varchar container_name
+  ,v.value:status::varchar status  
+  ,v.value:message::varchar message
+from (select parse_json(system$get_service_status('FINETUNE_LLM_SERVICE'))) t, 
+lateral flatten(input => t.$1) v;
+```
+
+**NOTE**: Make sure the Status is set to READY and Message is set to Running before proceeding.
+
+#### Step 7: Jupyter Notebook Service Endpoint
+
+Run the following command to access the endpoint where Jupyter Notebook is hosted in SPCS.
+
+```sql
+show endpoints in service FINETUNE_LLM_SERVICE;
+```
+
+In the **Results** section look for a column named `ingress_url` and copy the URL. It should look something similar to `bab5b3y-sfsenorthamerica-build-spcs.snowflakecomputing.app`
+
+**NOTE**: Make sure the Status is set to READY and Message is set to Running before proceeding.
+
+### Hands-on Lab: Fine-tune and Deploy Llama 2 in Snowpark Container Services
+
+* Open a new browser window and paste the Jupyter Notebook service endpoint URL copied in step 7
+* Login using your Snowflake credentials
+* On the left hand side, double click on [llm-day2-notebook.ipynb](llm-day2-notebook.ipynb)
 * Follow instructions and run through each cell in the Notebook
-
----
-
-### Day 2 Preparation
-
-Once you have completed the Day 1 hands-on lab as outlined above, follow the instructions below to prepare your environment for BUILD LLM Bootcamp Day 2. 
-
-**NOTE:** These operations can take about ~45-60mins depending on your wireless connection.
-
-1) Open terminal window and browse to the folder where you have cloned the repository
-
-2) Change folder to *day2*
-
-3) Run command *`docker build --platform linux/amd64 -t llm-bootcamp .`*
-
-4) Once that image is built locally, run the following commands to push the image to Snowflake Registry
-
-    1) Replace ***your-account-name*** with your account name and ***your-db-name*** with the name of your database ***in lowercase*** and then run the following command
-
-        `docker tag llm-bootcamp:latest sfsenorthamerica-your-account-name.registry.snowflakecomputing.com/your-db-name/schema_llm/image_repo/llm-bootcamp:latest`
-
-    2) Replace ***your-account-name*** with your account name and run the following command to login using your LLM Bootcamp Snowflake account username and password
-
-        `docker login sfsenorthamerica-your-account-name.registry.snowflakecomputing.com`
-        
-    3) Replace ***your-account-name*** with your account name and ***your-db-name*** with the name of your database ***in lowercase*** and then run the following command
-    
-        `docker push sfsenorthamerica-your-account-name.registry.snowflakecomputing.com/your-db-name/schema_llm/image_repo/llm-bootcamp:latest`
 
